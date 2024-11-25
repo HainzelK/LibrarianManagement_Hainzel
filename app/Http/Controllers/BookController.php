@@ -10,16 +10,24 @@ use Illuminate\Http\RedirectResponse;
 class BookController extends Controller
 {
     /**
-     * index
+     * Display a listing of the resource.
      *
-     * @return View
+     * @return \Illuminate\Http\Response
      */
     public function __construct()
     {
-        $this->middleware('role:admin')->only(['approve', 'reject']); // Admin-only actions
-        $this->middleware('role:librarian')->only(['create', 'store', 'edit', 'update', 'destroy']); // Librarian actions
+        $this->middleware('permission:book-list|book-create|book-edit|book-delete', ['only' => ['index', 'show']]);
+        $this->middleware('permission:book-create', ['only' => ['create', 'store']]);
+        $this->middleware('permission:book-edit', ['only' => ['edit', 'update']]);
+        $this->middleware('permission:book-delete', ['only' => ['destroy']]);
     }
-    public function index(): View
+
+    /**
+     * Display a listing of the resource.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function index(Request $request): View
     {
         // Check user role
         if (auth()->user()->hasRole('admin')) {
@@ -30,13 +38,14 @@ class BookController extends Controller
             $books = Book::where('status', 'approved')->latest()->paginate(10);
         }
 
-        return view('books.index', compact('books'));
+        return view('books.index', compact('books'))
+            ->with('i', ($request->input('page', 1) - 1) * 10);
     }
 
     /**
-     * create
+     * Show the form for creating a new resource.
      *
-     * @return View
+     * @return \Illuminate\Http\Response
      */
     public function create(): View
     {
@@ -44,10 +53,10 @@ class BookController extends Controller
     }
 
     /**
-     * store
+     * Store a newly created resource in storage.
      *
-     * @param Request $request
-     * @return RedirectResponse
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\Response
      */
     public function store(Request $request): RedirectResponse
     {
@@ -73,15 +82,24 @@ class BookController extends Controller
     }
 
     /**
-     * edit
+     * Display the specified resource.
      *
-     * @param string $id
-     * @return View
+     * @param  \App\Models\Book  $book
+     * @return \Illuminate\Http\Response
      */
-    public function edit(string $id): View
+    public function show(Book $book): View
     {
-        $book = Book::findOrFail($id);
+        return view('books.show', compact('book'));
+    }
 
+    /**
+     * Show the form for editing the specified resource.
+     *
+     * @param  \App\Models\Book  $book
+     * @return \Illuminate\Http\Response
+     */
+    public function edit(Book $book): View
+    {
         // Only allow editing if the book is pending
         if ($book->status !== 'pending') {
             abort(403, 'You can only edit pending books.');
@@ -91,13 +109,13 @@ class BookController extends Controller
     }
 
     /**
-     * update
+     * Update the specified resource in storage.
      *
-     * @param Request $request
-     * @param string $id
-     * @return RedirectResponse
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \App\Models\Book  $book
+     * @return \Illuminate\Http\Response
      */
-    public function update(Request $request, string $id): RedirectResponse
+    public function update(Request $request, Book $book): RedirectResponse
     {
         $request->validate([
             'title'        => 'required|min:3',
@@ -106,8 +124,6 @@ class BookController extends Controller
             'is_physical'  => 'required|boolean',
             'available'    => 'required|boolean',
         ]);
-
-        $book = Book::findOrFail($id);
 
         // Update book details and reset to pending status
         $book->update([
@@ -123,15 +139,13 @@ class BookController extends Controller
     }
 
     /**
-     * destroy
+     * Remove the specified resource from storage.
      *
-     * @param string $id
-     * @return RedirectResponse
+     * @param  \App\Models\Book  $book
+     * @return \Illuminate\Http\Response
      */
-    public function destroy(string $id): RedirectResponse
+    public function destroy(Book $book): RedirectResponse
     {
-        $book = Book::findOrFail($id);
-
         // Only allow deleting pending books
         if ($book->status !== 'pending') {
             abort(403, 'You can only delete pending books.');
@@ -143,15 +157,13 @@ class BookController extends Controller
     }
 
     /**
-     * approve
+     * Approve the specified resource.
      *
-     * @param string $id
-     * @return RedirectResponse
+     * @param  \App\Models\Book  $book
+     * @return \Illuminate\Http\Response
      */
-    public function approve(string $id): RedirectResponse
+    public function approve(Book $book): RedirectResponse
     {
-        $book = Book::findOrFail($id);
-
         // Approve the book
         $book->update(['status' => 'approved']);
 
@@ -159,19 +171,16 @@ class BookController extends Controller
     }
 
     /**
-     * reject
+     * Reject the specified resource.
      *
-     * @param string $id
-     * @return RedirectResponse
+     * @param  \App\Models\Book  $book
+     * @return \Illuminate\Http\Response
      */
-    public function reject(string $id): RedirectResponse
+    public function reject(Book $book): RedirectResponse
     {
-        $book = Book::findOrFail($id);
-
         // Reject the book
         $book->update(['status' => 'rejected']);
 
         return redirect()->route('books.index')->with(['success' => 'Book Rejected!']);
     }
-
 }
